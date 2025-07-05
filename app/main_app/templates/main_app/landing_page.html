@@ -1,0 +1,74 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Добро пожаловать - Host Site</title>
+    <link rel="stylesheet" href="{% static 'css/dark.css' %}">
+    <style>
+        /* Дополнительные стили для центрирования контента на лендинге */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            background-color: #f4f4f4; /* Светлый фон для лендинга */
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            padding: 40px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #fff;
+        }
+        h1 {
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+        .welcome-message {
+            font-size: 1.1em;
+            margin-bottom: 30px;
+        }
+        .auth-links a {
+            display: inline-block;
+            padding: 12px 25px;
+            margin: 0 10px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .auth-links a:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Добро пожаловать на Host Site!</h1>
+
+        {# Отображение Django-сообщений (success, error, info) #}
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                    <li class="status-message {{ message.tags }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        <p class="welcome-message">Пожалуйста, войдите или зарегистрируйтесь, чтобы получить доступ к услугам.</p>
+        <div class="auth-links">
+            <a href="{% url 'auth:login' %}">Войти</a>
+            <a href="{% url 'auth:register' %}">Зарегистрироваться</a>
+        </div>
+    </div>
+    {# Подключаем наш JavaScript файл в конце body для лучшей производительности #}
+    <script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>

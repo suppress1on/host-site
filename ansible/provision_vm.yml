@@ -1,0 +1,184 @@
+---
+- name: Provision a Real Virtual Machine using QEMU/KVM
+  hosts: localhost
+  connection: local
+  become: yes
+
+  collections:
+    - community.libvirt
+
+  vars:
+    vm_name: "default_vm"
+    cpu_cores: 2
+    ram_gb: 4
+    disk_gb: 50
+    os_type: "ubuntu"
+    vm_db_id: 0
+
+    libvirt_uri: "qemu:///system"
+    base_image_path: /media/pavel/12bf2147-7420-4f06-b0c7-aec8bf4972f2/base_images/ubuntu-22.04.qcow2
+    vm_disk_pool: "ssd_vm_pool"
+    libvirt_network_bridge: "default"
+
+    cloud_init_iso_path: "/tmp/{{ vm_name }}-cloud-init.iso"
+
+    cloud_init_user_data: |
+      #cloud-config
+      hostname: {{ vm_name }}
+      manage_etc_hosts: true
+      users:
+        - name: ubuntu
+          groups: sudo
+          shell: /bin/bash
+          sudo: ALL=(ALL) NOPASSWD:ALL
+          lock_passwd: false
+          passwd: "{{ 'ubuntu' | password_hash('sha512') }}"
+          ssh_pwauth: true
+      ssh_pwauth: true
+      disable_root: false
+      chpasswd:
+        list: |
+          ubuntu:ubuntu
+        expire: false
+
+    network:
+      version: 2
+      ethernets:
+        ens3:
+          dhcp4: true
+
+
+  tasks:
+    - name: Ensure libvirt service is running
+      ansible.builtin.systemd:
+        name: libvirtd
+        state: started
+        enabled: yes
+      tags: setup
+
+    - name: Check if base image exists
+      ansible.builtin.stat:
+        path: "{{ base_image_path }}"
+      register: base_image_stat
+      failed_when: not base_image_stat.stat.exists
+      run_once: true
+      tags: setup
+
+    - name: Get VM disk path from Libvirt pool
+      community.libvirt.virt_pool:
+        command: info
+        name: "{{ vm_disk_pool }}"
+        uri: "{{ libvirt_uri }}"
+      register: pool_info
+      failed_when: not pool_info.pools[vm_disk_pool].path is defined or not pool_info.pools[vm_disk_pool].path
+      run_once: true
+      tags: setup
+
+    - name: Create VM disk from base image (clone)
+      ansible.builtin.command: >
+        qemu-img create -f qcow2 -F qcow2 -b {{ base_image_path }}
+        {{ pool_info.pools[vm_disk_pool].path }}/{{ vm_name }}.qcow2 {{ disk_gb }}G
+      args:
+        creates: "{{ pool_info.pools[vm_disk_pool].path }}/{{ vm_name }}.qcow2"
+
+    - name: Write user-data file for cloud-init
+      ansible.builtin.copy:
+        dest: "/tmp/{{ vm_name }}-user-data.yml"
+        content: "{{ cloud_init_user_data }}"
+
+    - name: Create cloud-init ISO with user-data
+      ansible.builtin.command: >
+        cloud-localds {{ cloud_init_iso_path }} /tmp/{{ vm_name }}-user-data.yml
+      args:
+        creates: "{{ cloud_init_iso_path }}"
+
+    - name: Define the VM using virt module
+      community.libvirt.virt:
+        command: define
+        name: "{{ vm_name }}"
+        xml: |
+          <domain type='kvm'>
+            <name>{{ vm_name }}</name>
+            <memory unit='MiB'>{{ ram_gb * 1024 }}</memory>
+            <currentMemory unit='MiB'>{{ ram_gb * 1024 }}</currentMemory>
+            <vcpu placement='static'>{{ cpu_cores }}</vcpu>
+            <os>
+              <type arch='x86_64' machine='pc-q35-7.2'>hvm</type>
+              <boot dev='hd'/>
+            </os>
+            <features>
+              <acpi/>
+              <apic/>
+              <vmport state='off'/>
+            </features>
+            <cpu mode='host-passthrough' check='partial'/>
+            <clock offset='utc'/>
+            <on_poweroff>destroy</on_poweroff>
+            <on_reboot>restart</on_reboot>
+            <on_crash>destroy</on_crash>
+            <devices>
+              <emulator>/usr/bin/qemu-system-x86_64</emulator>
+              <disk type='file' device='disk'>
+                <driver name='qemu' type='qcow2'/>
+                <source file='{{ pool_info.pools[vm_disk_pool].path }}/{{ vm_name }}.qcow2'/>
+                <target dev='vda' bus='virtio'/>
+              </disk>
+              <disk type='file' device='cdrom'>
+                <driver name='qemu' type='raw'/>
+                <source file='{{ cloud_init_iso_path }}'/>
+                <target dev='sdb' bus='scsi'/>
+                <readonly/>
+              </disk>
+              <interface type='network'>
+                <source network='{{ libvirt_network_bridge }}'/>
+                <model type='virtio'/>
+              </interface>
+              <console type='pty'>
+                <target type='virtio' port='0'/>
+              </console>
+              <channel type='unix'>
+                <target type='virtio' name='org.qemu.guest_agent.0'/>
+                <address type='virtio-serial' controller='0' bus='0' port='1'/>
+              </channel>
+              <rng model='virtio'>
+                <backend model='random'>/dev/urandom</backend>
+              </rng>
+            </devices>
+          </domain>
+        uri: "{{ libvirt_uri }}"
+      register: vm_define_result
+
+    - name: Start the VM
+      become: yes
+      community.libvirt.virt:
+        state: running
+        name: "{{ vm_name }}"
+        uri: "{{ libvirt_uri }}"
+      register: vm_start_result
+
+    - name: Get VM IP address from Libvirt (best effort, requires DHCP lease info)
+      ansible.builtin.shell: >
+        virsh domifaddr {{ vm_name }} --source lease | grep ipv4 | awk '{print $4}' | cut -d'/' -f1
+      register: vm_ip_raw
+      changed_when: false
+      failed_when: false
+      ignore_errors: true
+
+
+    - name: Wait for VM IP to appear
+      ansible.builtin.wait_for:
+        host: "{{ vm_ip_raw.stdout }}"
+        port: 22
+        timeout: 300
+        state: started
+      delegate_to: localhost
+      when: vm_ip_raw.stdout != ""
+      ignore_errors: true
+
+    - name: Set VM IP fact
+      ansible.builtin.set_fact:
+        vm_ip_address: "{{ vm_ip_raw.stdout | default('N/A') }}"
+
+    - name: Notify about VM creation and IP
+      ansible.builtin.debug:
+        msg: "Real VM '{{ vm_name }}' ({{ os_type }}) created and started. IP: {{ vm_ip_address }}"

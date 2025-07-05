@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Услуга Виртуальной Машины</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="range"], select {
+            width: calc(100% - 10px);
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        input[type="range"] {
+            width: 100%; /* Range inputs might ned full width for proper display */
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+        /* Удалены стили .terminal, .error, .success, так как они теперь на странице результатов */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Настройка и Запуск Виртуальной Машины</h1>
+
+        {# ИЗМЕНЕНО: Добавлен префикс пространства имен 'vm_service_app:' #}
+        <form action="{% url 'vm_service_app:provision_vm_action' %}" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="vm_name">Имя Виртуальной Машины:</label>
+                {# Сохраняем значение, если оно было передано, иначе используем default_vm_name из контекста #}
+                <input type="text" id="vm_name" name="vm_name" value="{{ vm_name|default:'' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="cpu_cores">Количество CPU ядер: <span id="cpu_cores_value">{{ cpu_cores|default:2 }}</span></label>
+                {# Сохраняем значение, если оно было передано #}
+                <input type="range" id="cpu_cores" name="cpu_cores" min="1" max="8" value="{{ cpu_cores|default:2 }}" oninput="document.getElementById('cpu_cores_value').innerText = this.value;">
+            </div>
+
+            <div class="form-group">
+                <label for="ram_gb">Объем RAM (GB): <span id="ram_gb_value">{{ ram_gb|default:4 }}</span></label>
+                {# Сохраняем значение, если оно было передано #}
+                <input type="range" id="ram_gb" name="ram_gb" min="1" max="16" value="{{ ram_gb|default:4 }}" oninput="document.getElementById('ram_gb_value').innerText = this.value;">
+            </div>
+
+            <div class="form-group">
+                <label for="disk_gb">Объем Диска (GB): <span id="disk_gb_value">{{ disk_gb|default:50 }}</span></label>
+                {# Сохраняем значение, если оно было передано #}
+                <input type="range" id="disk_gb" name="disk_gb" min="10" max="200" step="10" value="{{ disk_gb|default:50 }}" oninput="document.getElementById('disk_gb_value').innerText = this.value;">
+            </div>
+
+            <div class="form-group">
+                <label for="os_type">Операционная Система:</label>
+                {# Сохраняем выбранное значение #}
+                <select id="os_type" name="os_type">
+                    <option value="ubuntu" {% if os_type == 'ubuntu' %}selected{% endif %}>Ubuntu Server</option>
+                    <option value="centos" {% if os_type == 'centos' %}selected{% endif %}>CentOS Stream</option>
+                    <option value="debian" {% if os_type == 'debian' %}selected{% endif %}>Debian</option>
+                </select>
+            </div>
+
+            <button type="submit">Запустить Виртуальную Машину</button>
+        </form>
+
+        {# Удалены секции для вывода терминала, они теперь на странице результатов #}
+    </div>
+    <script>
+        // Инициализация ползунков с учетом переданных значений
+        document.addEventListener('DOMContentLoaded', function() {
+            const vmNameInput = document.getElementById('vm_name');
+            if (vmNameInput.value === '') {
+                // Если имя не было передано (первый GET-запрос), используем сгенерированное
+                vmNameInput.value = "{{ vm_name|escapejs }}";
+            }
+
+            const cpuCoresSlider = document.getElementById('cpu_cores');
+            const ramGbSlider = document.getElementById('ram_gb');
+            const diskGbSlider = document.getElementById('disk_gb');
+
+            document.getElementById('cpu_cores_value').innerText = cpuCoresSlider.value;
+            document.getElementById('ram_gb_value').innerText = ramGbSlider.value;
+            document.getElementById('disk_gb_value').innerText = diskGbSlider.value;
+        });
+    </script>
+</body>
+</html>

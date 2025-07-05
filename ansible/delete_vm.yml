@@ -1,0 +1,81 @@
+# ansible/delete_vm.yml
+---
+- name: Delete a Virtual Machine using QEMU/KVM
+  hosts: localhost
+  connection: local
+  become: yes # Требуется для взаимодействия с Libvirt и удаления файлов
+
+  collections:
+    - community.libvirt
+
+  vars:
+    vm_name: "default_vm" # Будет переопределено из Django
+    libvirt_uri: "qemu:///system"
+    vm_disk_pool: "ssd_vm_pool" # Должен совпадать с пулом, используемым при создании
+    cloud_init_iso_path: "/tmp/{{ vm_name }}-cloud-init.iso"
+    cloud_init_user_data_path: "/tmp/{{ vm_name }}-user-data.yml"
+
+  tasks:
+    # Задача для получения информации о пуле.
+    # Она не должна падать, если пул не найден, но должна регистрировать результат.
+    - name: Get VM disk pool info
+      community.libvirt.virt_pool:
+        command: info
+        name: "{{ vm_disk_pool }}"
+        uri: "{{ libvirt_uri }}"
+      register: pool_info_result # Переименовал, чтобы избежать путаницы
+      failed_when: false # Не падать, если пул не найден
+      run_once: true
+
+    # Задача для получения информации о ВМ.
+    - name: Get VM info to check if it exists
+      community.libvirt.virt:
+        command: info
+        name: "{{ vm_name }}"
+        uri: "{{ libvirt_uri }}"
+      register: vm_info_result
+      failed_when: false # Не падать, если ВМ не найдена
+      ignore_errors: true # Игнорируем ошибки, если ВМ уже удалена
+
+    - name: Stop the VM if it is running
+      community.libvirt.virt:
+        state: shutdown # Попытаться корректно выключить ВМ
+        name: "{{ vm_name }}"
+        uri: "{{ libvirt_uri }}"
+      # Выполняем, только если ВМ была найдена и находится в состоянии 'running'
+      when: vm_info_result.status is defined and vm_info_result.status == 'running'
+      ignore_errors: true
+
+    - name: Undefine the VM (remove its definition from Libvirt)
+      community.libvirt.virt:
+        command: undefine
+        name: "{{ vm_name }}"
+        uri: "{{ libvirt_uri }}"
+      # Выполняем, только если ВМ была найдена (т.е. ее определение существует)
+      when: vm_info_result.status is defined
+      ignore_errors: true
+
+    - name: Remove VM disk file
+      ansible.builtin.file:
+        # <--- ИЗМЕНЕНО: Обращаемся к pool_info_result.pools[vm_disk_pool].path
+        path: "{{ pool_info_result.pools[vm_disk_pool].path }}/{{ vm_name }}.qcow2"
+        state: absent
+      # <--- ИЗМЕНЕНО: Условие выполнения: пул найден и путь определен
+      when: pool_info_result.pools is defined and vm_disk_pool in pool_info_result.pools and pool_info_result.pools[vm_disk_pool].path is defined
+      ignore_errors: true
+
+    - name: Remove cloud-init ISO file
+      ansible.builtin.file:
+        path: "{{ cloud_init_iso_path }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Remove cloud-init user-data file
+      ansible.builtin.file:
+        path: "{{ cloud_init_user_data_path }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Notify about VM deletion
+      ansible.builtin.debug:
+        msg: "VM '{{ vm_name }}' has been successfully deleted (or was already absent)."
