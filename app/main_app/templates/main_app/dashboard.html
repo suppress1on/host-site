@@ -69,6 +69,8 @@
         .status-error { background-color: #dc3545; } /* Красный */
         .status-stopped { background-color: #6c757d; } /* Серый */
         .status-deleted { background-color: #343a40; } /* Темно-серый */
+        .status-deletion_error { background-color: #ff4500; } /* Оранжево-красный для ошибки удаления */
+
 
         /* Стили для сообщений Django */
         .messages {
@@ -109,7 +111,8 @@
         <h2>Наши услуги:</h2>
         <ul class="service-list">
             <li><a href="{% url 'vm_service_app:vm_provisioning_form' %}" class="service-button">Заказать новую ВМ</a></li>
-            <li>Предоставление дискового пространства (скоро)</li>
+            {# ИЗМЕНЕНО: Добавлены классы Tailwind для кнопки "Заказать дисковое пространство" #}
+            <li><a href="{% url 'storage_app:request_disk_space' %}" class="service-button bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Заказать дисковое пространство</a></li>
         </ul>
 
         {# СЕКЦИЯ: Дашборд пользователя с его ВМ #}
@@ -161,6 +164,49 @@
                 <p>У вас пока нет активных виртуальных машин. <a href="{% url 'vm_service_app:vm_provisioning_form' %}">Закажите новую!</a></p>
             {% endif %}
         </div>
+
+        {# <--- ДОБАВЛЕНО: Секция для отображения дискового пространства #}
+        <div class="user-dashboard">
+            <h2>Мое Дисковое Пространство:</h2>
+            {% if disk_spaces %}
+                {% for ds in disk_spaces %}
+                    <div class="service-item">
+                        <div class="service-info">
+                            <h3>{{ ds.name }}</h3>
+                            <p><strong>Выделено:</strong> {{ ds.allocated_gb }} GB</p>
+                            <p><strong>Использовано:</strong> {{ ds.used_gb }} GB</p>
+                            <p><strong>Создано:</strong> {{ ds.created_at|date:"d.m.Y H:i" }}</p>
+                            <p><strong>Статус:</strong>
+                                <span class="status-badge status-{{ ds.status }}">
+                                    {{ ds.get_status_display }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="service-actions">
+                            {# Кнопка "Файлы" активна только если статус "active" #}
+                            {% if ds.status == 'active' %}
+                                <a href="{% url 'storage_app:file_system' uuid_str=ds.uuid %}" class="action-button view-button">Файлы</a>
+                            {% else %}
+                                <span class="action-button disabled-button">Файлы</span>
+                            {% endif %}
+
+                            {# Кнопка "Удалить" активна, если дисковое пространство не в состоянии 'pending' или 'deleting' #}
+                            {% if ds.status != 'pending' and ds.status != 'deleting' %}
+                                <form action="{% url 'storage_app:delete_disk_space_action' uuid_str=ds.uuid %}" method="post" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="action-button delete-button" onclick="return confirm('Вы уверены, что хотите удалить дисковое пространство {{ ds.name }}? Все файлы будут удалены!');">Удалить</button>
+                                </form>
+                            {% else %}
+                                <span class="action-button disabled-button">Удалить</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>У вас пока нет выделенного дискового пространства. <a href="{% url 'storage_app:request_disk_space' %}">Закажите сейчас!</a></p>
+            {% endif %}
+        </div>
+
     </div>
     {# Подключаем наш JavaScript файл в конце body для лучшей производительности #}
     <script src="{% static 'js/main.js' %}"></script>

@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'auth_app',
     'main_app',
     'vm_service_app',
+    'storage_app',
 ]
 
 MIDDLEWARE = [
@@ -138,3 +139,8 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 
+# minio
+MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT') # Без http:// или https://
+MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY')
+MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY')
+MINIO_SECURE = os.environ.get('MINIO_SECURE', 'False').lower() == 'true' # True для HTTPS, False для HTTP
