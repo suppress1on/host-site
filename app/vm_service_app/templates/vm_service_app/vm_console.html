@@ -40,38 +40,18 @@
         .back-button:hover {
             background-color: #0056b3;
         }
-        .console-container {
+        .console-output {
             flex-grow: 1;
-            display: flex;
-            flex-direction: column;
             background-color: #0d1117; /* Очень темный фон для консоли */
-            border-radius: 0 0 8px 8px; /* Скругленные углы снизу */
-            margin: 0 20px 20px 20px; /* Отступы по бокам и снизу */
-            overflow: hidden; /* Скрываем все, что выходит за границы */
-        }
-        #console-output {
-            flex-grow: 1;
-            background-color: #0d1117;
             color: #39ff14; /* Ярко-зеленый текст для консоли */
-            padding: 10px;
+            padding: 20px;
             font-family: 'Courier New', Courier, monospace;
             white-space: pre-wrap; /* Сохраняет пробелы и переводы строк */
             overflow-y: auto; /* Прокрутка для длинного вывода */
-            border: none;
-            resize: none; /* Запрещаем изменение размера пользователем */
-            outline: none; /* Убираем рамку при фокусе */
-            height: 100%; /* Занимает всю доступную высоту */
+            border-radius: 0 0 8px 8px; /* Скругленные углы снизу */
         }
-        #console-input {
-            width: 100%;
-            padding: 10px;
-            background-color: #161b22; /* Темнее, чем фон консоли */
-            border: none;
-            border-top: 1px solid #30363d;
-            color: #c9d1d9;
-            font-family: 'Courier New', Courier, monospace;
-            outline: none;
-            box-sizing: border-box; /* Включаем padding и border в общую ширину */
+        pre {
+            margin: 0;
         }
         /* Стили для сообщений Django */
         .messages {
@@ -91,7 +71,6 @@
     </style>
 </head>
 <body>
-    {# Отображение Django-сообщений (success, error, info) #}
     {% if messages %}
         <ul class="messages">
             {% for message in messages %}
@@ -102,67 +81,21 @@
 
     <div class="console-header">
         <h1>Консоль ВМ: {{ vm_instance.name }}</h1>
+        {# ИЗМЕНЕНО: Добавлен префикс пространства имен 'main_app:' #}
         <a href="{% url 'main_app:home' %}" class="back-button">Вернуться на главную</a>
     </div>
-
-    <div class="console-container">
-        <textarea id="console-output" readonly></textarea>
-        <input type="text" id="console-input" placeholder="Введите команду...">
+    <div class="console-output">
+        <pre>{{ console_output }}</pre>
+        {% if ansible_stdout %}
+            <div style="color: #00FFFF; margin-top: 20px;">--- Логи Ansible (stdout) ---</div>
+            <pre style="color: #00FFFF;">{{ ansible_stdout }}</pre>
+        {% endif %}
+        {% if ansible_stderr %}
+            <div style="color: #FF00FF; margin-top: 20px;">--- Логи Ansible (stderr) ---</div>
+            <pre style="color: #FF00FF;">{{ ansible_stderr }}</pre>
+        {% endif %}
     </div>
 
-    {# Подключаем наш JavaScript файл в конце body для лучшей производительности #}
     <script src="{% static 'js/main.js' %}"></script>
-    <script>
-        const vmId = "{{ vm_instance.pk }}";
-        const consoleOutput = document.getElementById('console-output');
-        const consoleInput = document.getElementById('console-input');
-
-        // Определяем протокол WebSocket (ws или wss) в зависимости от текущего протокола HTTP
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const socket = new WebSocket(
-            wsProtocol + window.location.host + '/ws/vm/' + vmId + '/console/'
-        );
-
-        socket.onopen = function(e) {
-            console.log("WebSocket connection established.");
-            consoleOutput.value += "Соединение с консолью установлено.\n";
-            consoleInput.focus(); // Устанавливаем фокус на поле ввода
-        };
-
-        socket.onmessage = function(e) {
-            // Получаем данные из консоли ВМ и добавляем их в область вывода
-            consoleOutput.value += e.data;
-            // Прокручиваем вывод вниз
-            consoleOutput.scrollTop = consoleOutput.scrollHeight;
-        };
-
-        socket.onclose = function(e) {
-            console.error('WebSocket connection closed unexpectedly. Code: ' + e.code + ', Reason: ' + e.reason);
-            consoleOutput.value += "\nСоединение с консолью разорвано. Пожалуйста, обновите страницу, чтобы попробовать снова.\n";
-            consoleInput.disabled = true; // Отключаем ввод
-        };
-
-        socket.onerror = function(e) {
-            console.error('WebSocket error: ', e);
-            consoleOutput.value += "\nОшибка WebSocket. Пожалуйста, проверьте подключение.\n";
-            consoleInput.disabled = true; // Отключаем ввод
-        };
-
-        // Отправка ввода пользователя при нажатии Enter
-        consoleInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                const command = consoleInput.value + '\n'; // Добавляем перевод строки для отправки команды
-                socket.send(command);
-                consoleInput.value = ''; // Очищаем поле ввода
-                e.preventDefault(); // Предотвращаем стандартное поведение Enter (например, добавление новой строки в input)
-            }
-        });
-
-        // Дополнительная обработка для обеспечения фокусировки и прокрутки
-        window.onload = function() {
-            consoleInput.focus();
-            consoleOutput.scrollTop = consoleOutput.scrollHeight;
-        };
-    </script>
 </body>
 </html>

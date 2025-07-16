@@ -21,3 +21,5 @@ static_cdn/
 *.vault_pass.txt
 .ansible/ 
 ansible/group_vars/all/vault_secrets.yml
+
+default-network.xml

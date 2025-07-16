@@ -13,8 +13,7 @@ load_dotenv(BASE_DIR_PROJECT_ROOT / '.env')
 
 # Quick-start development settings - unsuitable for production
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-_8u!vbfwny%3*!_c&s^qugx9&p)#l+tuw^@=+fty*@i#japdv1'
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -112,7 +111,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
-    BASE_DIR / 'static', # Если 'static' находится в 'host-site/app/static/'
+    BASE_DIR / 'static',
 ]
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -140,7 +139,7 @@ EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 
 # minio
-MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT') # Без http:// или https://
+MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT')
 MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY')
 MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY')
-MINIO_SECURE = os.environ.get('MINIO_SECURE', 'False').lower() == 'true' # True для HTTPS, False для HTTP
+MINIO_SECURE = os.environ.get('MINIO_SECURE', 'False').lower() == 'true'
